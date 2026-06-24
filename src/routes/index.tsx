@@ -285,19 +285,32 @@ function Wardrobe({
 
   const selectedCount = items.filter((g) => g.selected).length;
 
-  const handleGarmentFile = (f?: File | null) => {
+  const handleGarmentFile = async (f?: File | null) => {
     if (!f) return;
     setProcessing(true);
-    const reader = new FileReader();
-    reader.onload = (e) => {
-      const img = String(e.target?.result ?? "");
-      // simulated BG removal delay
-      setTimeout(() => {
-        setProcessing(false);
-        onAdd(img);
-      }, 1500);
-    };
-    reader.readAsDataURL(f);
+    try {
+      const { removeBackground } = await import("@imgly/background-removal");
+      const blob = await removeBackground(f, { output: { format: "image/png" } });
+      const img: string = await new Promise((resolve, reject) => {
+        const r = new FileReader();
+        r.onload = () => resolve(String(r.result ?? ""));
+        r.onerror = () => reject(r.error);
+        r.readAsDataURL(blob);
+      });
+      onAdd(img);
+    } catch (err) {
+      console.error("Background removal failed", err);
+      // fallback: use original image
+      const img: string = await new Promise((resolve, reject) => {
+        const r = new FileReader();
+        r.onload = () => resolve(String(r.result ?? ""));
+        r.onerror = () => reject(r.error);
+        r.readAsDataURL(f);
+      });
+      onAdd(img);
+    } finally {
+      setProcessing(false);
+    }
   };
 
   return (
